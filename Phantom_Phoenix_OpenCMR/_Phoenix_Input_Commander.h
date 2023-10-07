@@ -90,8 +90,8 @@ enum {
 
 #define ARBOTIX_TO  1250        // if we don't get a valid message in this number of mills turn off
 
-#ifndef XBeeSerial
-SoftwareSerial XBeeSerial(cXBEE_IN, cXBEE_OUT);
+#ifndef RPISerial
+Serial2 RPISerial
 #endif
 #ifndef USER
 #define USER 13
@@ -594,8 +594,8 @@ size_t ReadBytesUntil(uint32_t timeout, char terminator, char *buffer, size_t le
     uint32_t start_time = millis();
     int c = -1;
     do {
-      if (XBeeSerial.available()) {
-        c = XBeeSerial.read();
+      if (RPISerial.available()) {
+        c = RPISerial.read();
       }
     } while ((c == -1) && ((millis()-start_time) < timeout));
     if (c < 0 || c == terminator) break;
@@ -612,11 +612,11 @@ size_t ReadBytesUntil(uint32_t timeout, char terminator, char *buffer, size_t le
 void PrintXBeeIDInfo(const char *pszID) {
   char ab[20];
   int cbRead;
-  while (XBeeSerial.available())
-    XBeeSerial.read();  // Flush out anything still pending. 
-  XBeeSerial.print("AT");  
-  XBeeSerial.println(pszID);  // Lets print out the ID;
-  XBeeSerial.flush();
+  while (RPISerial.available())
+    RPISerial.read();  // Flush out anything still pending. 
+  RPISerial.print("AT");  
+  RPISerial.println(pszID);  // Lets print out the ID;
+  RPISerial.flush();
   cbRead = ReadBytesUntil(20, '\r', ab, sizeof(ab));
   if (cbRead) {
     DBGSerial.print(pszID);
@@ -634,9 +634,9 @@ boolean CommanderInputController::ProcessTerminalCommand(byte *psz, byte bLen)
     char ab[10];
     //int cbRead;
     delay(15);  // see if we have fast command mode enabled.
-    XBeeSerial.print("+++"); 
-    XBeeSerial.flush();
-    XBeeSerial.setTimeout(20);  // give a little extra time
+    RPISerial.print("+++"); 
+    RPISerial.flush();
+    RPISerial.setTimeout(20);  // give a little extra time
     if (ReadBytesUntil(20, '\r', ab, 10) > 0) {
       // Ok we entered command mode, lets print out a few things about the XBee
       PrintXBeeIDInfo("MY");
@@ -645,7 +645,7 @@ boolean CommanderInputController::ProcessTerminalCommand(byte *psz, byte bLen)
       PrintXBeeIDInfo("EA");
       PrintXBeeIDInfo("EC");
 
-      XBeeSerial.println("ATCN");  // exit command mode
+      RPISerial.println("ATCN");  // exit command mode
       /*cbRead =*/ ReadBytesUntil(20, '\r', ab, sizeof(ab));
     } 
     else {
@@ -703,25 +703,25 @@ void Commander::begin(unsigned long baud){
   // Sometimes when we power up the XBee comes up at 9600 in command mode
   // There is an OK<cr>.  So check for this and try to exit
 #ifdef NOT_SURE_WHY_NEEDED_SOMETIMES
-  XBeeSerial.begin(9600);  
-  XBeeSerial.println("ATCN");  // Tell it to bail quickly
+  RPISerial.begin(9600);  
+  RPISerial.println("ATCN");  // Tell it to bail quickly
   delay(25);
-  XBeeSerial.end();
+  RPISerial.end();
   delay(25);
 #endif  
-  XBeeSerial.begin(baud);
+  RPISerial.begin(baud);
   pinMode(USER, OUTPUT);
 #ifdef CHECK_AND_CONFIG_XBEE
   DBGSerial.println("Check xbee config");
-  while (XBeeSerial.available()) XBeeSerial.read();
+  while (RPISerial.available()) RPISerial.read();
   // First lets see if we have a real short command time
   delay(15);  // see if we have fast command mode enabled.
-  XBeeSerial.print("+++"); 
-  XBeeSerial.flush();
-  XBeeSerial.setTimeout(20);  // give a little extra time
+  RPISerial.print("+++"); 
+  RPISerial.flush();
+  RPISerial.setTimeout(20);  // give a little extra time
   DBGSerial.println("After set timeout");
   if (ReadBytesUntil(20, '\r', ab, 10) > 0) {
-    XBeeSerial.println("ATCN");	          // and exit command mode
+    RPISerial.println("ATCN");            // and exit command mode
     DBGSerial.println("+++ returned data quickly");
     return;  // bail out quick
   }
@@ -729,26 +729,26 @@ void Commander::begin(unsigned long baud){
   // Else see if maybe properly configured but not quick command mode.
   delay(1100);
   DBGSerial.println("XBee try long delay");
-  while (XBeeSerial.available()) XBeeSerial.read();
-  XBeeSerial.print("+++");
-  XBeeSerial.setTimeout(1100);  // little over a second
+  while (RPISerial.available()) RPISerial.read();
+  RPISerial.print("+++");
+  RPISerial.setTimeout(1100);  // little over a second
   if (ReadBytesUntil(1100, '\r', ab, 10) > 0) {
     // Note: we could check a few more things here if we run into issues.  Like: MY!=0
     // or MY != DL
     DBGSerial.println("XBee long dealy worked set short delay ");
-    XBeeSerial.println("ATGT 5");              // Set a quick command mode
-    XBeeSerial.println("ATWR");	          // Write out the changes
-    XBeeSerial.println("ATCN");	          // and exit command mode
+    RPISerial.println("ATGT 5");              // Set a quick command mode
+    RPISerial.println("ATWR");           // Write out the changes
+    RPISerial.println("ATCN");           // and exit command mode
     return;  // It is already at 38400, so assume already init.
   }
   // Failed, so check to see if we can communicate at 9600
   DBGSerial.println("XBee failed to read at 38400 try 9600");
-  XBeeSerial.end();
-  XBeeSerial.begin(9600);
-  while (XBeeSerial.available()) XBeeSerial.read();
+  RPISerial.end();
+  RPISerial.begin(9600);
+  while (RPISerial.available()) RPISerial.read();
 
   delay(1100);
-  XBeeSerial.print("+++");
+  RPISerial.print("+++");
   if (ReadBytesUntil(1100, '\r', ab, 10) == 0) {
     // failed blink fast
     DBGSerial.println("XBee failed configure");
@@ -760,27 +760,27 @@ void Commander::begin(unsigned long baud){
   } 
   else {
     // So we entered command mode, lets set the appropriate stuff. 
-    XBeeSerial.println("ATBD 5");  // 38400
-    XBeeSerial.print("ATID ");
-    XBeeSerial.println(DEFAULT_ID, HEX);
+    RPISerial.println("ATBD 5");  // 38400
+    RPISerial.print("ATID ");
+    RPISerial.println(DEFAULT_ID, HEX);
 
-    XBeeSerial.print("ATMY ");
-    XBeeSerial.println(DEFAULT_MY, HEX);
+    RPISerial.print("ATMY ");
+    RPISerial.println(DEFAULT_MY, HEX);
 
-    XBeeSerial.println("ATDH 0");
-    XBeeSerial.print("ATDL ");
-    XBeeSerial.println(DEFAULT_DL, HEX);
+    RPISerial.println("ATDH 0");
+    RPISerial.print("ATDL ");
+    RPISerial.println(DEFAULT_DL, HEX);
 
-    XBeeSerial.println("ATGT 5");    // Set a quick command mode
-    XBeeSerial.println("ATWR");	// Write out the changes
-    XBeeSerial.println("ATCN");	// and exit command mode
-    XBeeSerial.flush();              // make sure all has been output
+    RPISerial.println("ATGT 5");    // Set a quick command mode
+    RPISerial.println("ATWR"); // Write out the changes
+    RPISerial.println("ATCN"); // and exit command mode
+    RPISerial.flush();              // make sure all has been output
     // lets do a quick and dirty test
     delay(250);  // Wait a bit for responses..
   }
-  XBeeSerial.end();
+  RPISerial.end();
   delay(10);
-  XBeeSerial.begin(38400);
+  RPISerial.begin(38400);
 #endif  
 
 }
@@ -792,33 +792,31 @@ void Commander::begin(unsigned long baud){
 /* process messages coming from Commander 
  *  format = 0xFF RIGHT_H RIGHT_V LEFT_H LEFT_V BUTTONS EXT CHECKSUM */
 int Commander::ReadMsgs(){
-  while(XBeeSerial.available() > 0){
+  bool g_fDebugOutput = true;
+  while(RPISerial.available() > 0){
     if(index == -1){         // looking for new packet
-      if(XBeeSerial.read() == 0xff){
+      if(RPISerial.read() == 0xff){
         index = 0;
         checksum = 0;
       }
     }
     else if(index == 0){
-      vals[index] = (unsigned char) XBeeSerial.read();
+      vals[index] = (unsigned char) RPISerial.read();
       if(vals[index] != 0xff){            
         checksum += (int) vals[index];
         index++;
       }
     }
     else{
-      vals[index] = (unsigned char) XBeeSerial.read();
+      vals[index] = (unsigned char) RPISerial.read();
       checksum += (int) vals[index];
       index++;
       if(index == 7){ // packet complete
-        if(checksum%256 != 255){
-#ifdef DEBUG_COMMANDER
-#ifdef DBGSerial  
+        if(checksum%256 != 255){  
           if (g_fDebugOutput) {
             DBGSerial.println("Packet Error");
           }
-#endif          
-#endif
+
           // packet error!
           index = -1;
           return 0;
@@ -848,13 +846,13 @@ int Commander::ReadMsgs(){
 #endif
         }
         index = -1;
-        while (XBeeSerial.available())
-          XBeeSerial.read();
+        while (RPISerial.available())
+          RPISerial.read();
         return 1;
       }
     }
   }
-  return 0;
+  return 0
 }
 //==============================================================================
 //==============================================================================
